@@ -1,0 +1,107 @@
+### Data from B73 and Mo17 maize strains ###
+### Leaves Extracts ###
+
+# Set your working directory
+setwd("C:/Users/")
+
+# Install the libraries needed
+library(MALDIquant)
+library(MALDIquantForeign)
+library(pheatmap)
+library(factoextra)
+
+#############################
+### Mass Spectra Analysis ###
+#############################
+
+# Files list
+mzML_list<-list.files(pattern = "*.mzML")
+mzML_list
+
+# Import Data & Sum Scans
+filecounter<-1
+spectrum<-list()
+mzMLno<-length(mzML_list)
+while (filecounter<=mzMLno){
+  mzML_filename<-mzML_list[filecounter]
+  print(mzML_filename)
+  importspectrum <- import(mzML_filename)
+  sumspectrum <- averageMassSpectra(importspectrum, method="sum")
+  spectrum[[filecounter]]<-sumspectrum
+  print(filecounter)
+  filecounter<-filecounter+1
+}
+
+## Using MALDIquant package ##
+# Calibrate intensity
+spectrum_cI_tic <- calibrateIntensity(spectrum, method="TIC")
+
+plot(spectrum[[1]])
+plot(spectrum_cI_tic[[1]])
+
+# Signal to noise
+peaks <- detectPeaks(spectrum_cI_tic)
+peaks
+
+# Peak picking
+warpingFunctions<-determineWarpingFunctions(peaks)
+peaks<-warpMassPeaks(peaks,warpingFunctions)
+
+# Binning
+peaks <- binPeaks(peaks)
+
+# Peak filtering
+peaks <- filterPeaks(peaks, minFrequency=0.5)
+
+#Generate the Feature Matrix
+samplenames<-gsub(".mzML","",mzML_list)
+featureMatrix <- intensityMatrix(peaks)
+featureMatrix <- as.data.frame(featureMatrix)
+rownames(featureMatrix)<-samplenames
+colnames(featureMatrix)<-colnames(featureMatrix)
+featureMatrix[is.na(featureMatrix)] <- 0
+write.csv(featureMatrix,"FeatureMatrix_TIC.csv")
+
+#Find maximal value for each column (mz-bin)
+columnmax<-apply(featureMatrix, 2, max)
+
+#Sort and select the most intense values
+colmax<-sort(columnmax,decreasing=TRUE)
+colmaxselection<-as.matrix(colmax[1:20])
+colmaxselection=as.vector(rownames(colmaxselection))
+
+#Limiting matrix to selection
+max_normout_featureMatrix<-featureMatrix[,colmaxselection]
+t_max_normout_featureMatrix<-t(max_normout_featureMatrix)
+
+
+#############################
+###   Data visualization  ###
+#############################
+
+## Heatmap ##
+pheatmap(t_max_normout_featureMatrix)
+
+## PCA ##
+#Calculate kmeans
+km.out <- kmeans(featureMatrix, centers = 2, nstart = 20, iter.max = 50) 
+km.out$cluster
+
+pca1=prcomp(featureMatrix)
+
+#Plot PCA
+dim1<- fviz_pca_ind(pca1,  axes = c(1,2), 
+                    col.ind = factor(km.out$cluster),
+                    addEllipses= T,
+                    repel = T,
+                    legend.title = "Genotype")
+
+
+dim1
+
+#############################
+###     Data mining       ###
+#############################
+
+## Random Forest ##
+
