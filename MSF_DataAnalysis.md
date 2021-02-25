@@ -1,14 +1,3 @@
----
-title: "Leaves analysis"
-output:
-  html_document: 
-    theme: readable
-    df_print: default
-editor_options:
-  chunk_output_type: inline
-  fontsize: 14 pt
----
-
 # **Data from B73 and Mo17 maize strains**
 
 ## Leaves extracts
